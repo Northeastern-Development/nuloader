@@ -1,0 +1,45 @@
+
+/* 
+    Unset/Reset Styles for Table Els
+ */
+.form-table-libmod td {
+    padding-left: 0;
+}
+
+/* 
+    Add some definition to the categories
+ */
+.form-table-libmod-category {
+    border-bottom: 1px solid #000;
+}
+.js__libmod-category--opened {
+    background-color: rgba(0, 0, 0, 0.1);
+}
+.libmod-category-module-version{
+    color: gray;
+    position: absolute;
+    font-size: 14px;
+}
+
+
+
+
+
+/* 
+    Pointer over the collapsed accordion, ( click to open )
+    Arrow over the open accordion ( click does nothing here )
+ */
+.form-table-libmod-category:not(.js__libmod-category--opened){
+    cursor: pointer;
+}
+
+/* 
+    Behavioral Classes
+*/
+.form-table-libmod-category table {
+    display: none;
+}
+
+.js__libmod-category--opened table {
+    display: block;
+}
