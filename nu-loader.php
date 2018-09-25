@@ -182,8 +182,16 @@ class NUModuleLoader
                 }
                 function download_nu_module_zip($module, $zipFilePath, $moduleDirPath){
                     $remotezip = $module['gitlink'];
+                    
+                    
+                    // file_get_contents fails under certain conditions (DNS issues w/ allow_url_fopen)
+                    // this should probably TRY to run; catch errors, and then try cURL if there is an error
+                    
                     $contents = file_get_contents($remotezip);
                     $success = file_put_contents($zipFilePath, $contents);
+                    
+                    
+                    
                     $zip = new ZipArchive;
                     $result = $zip->open($zipFilePath);
                     if( $result === true ){
