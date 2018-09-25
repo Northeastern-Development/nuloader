@@ -11,7 +11,8 @@
  */
 class NUModuleLoader
 {
-	var $resourcesUrl
+    var $resourcesObject
+        , $resourcesUrl
 		, $brandLibrary
 		, $activeComponentSource
 	;
@@ -19,8 +20,11 @@ class NUModuleLoader
 	function __construct()
 	{
     	// Remote JSON file Location:
-		$this->brandLibrary = json_decode(wp_remote_get('http://sandbox.bar/manageconfig.json')['body'], true);
-		$this->resourcesUrl = array($this->brandLibrary->config->sourceurl);
+        $this->brandLibrary = json_decode(wp_remote_get('http://sandbox.bar/manageconfig.json')['body'], true);
+        
+        $this->resourcesObject = json_decode(wp_remote_get('https://brand.northeastern.edu/global/components/config/library.json')['body']);
+
+        $this->resourcesUrl = array($this->resourcesObject->config->sourceurl);
 
 		// Construct for the Admin Area
 		if (is_admin()) {
