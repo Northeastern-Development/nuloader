@@ -20,7 +20,7 @@ class NUModuleLoader
 	function __construct()
 	{
     	// Remote JSON file Location:
-        $this->brandLibrary = json_decode(wp_remote_get('http://sandbox.bar/manageconfig.json')['body'], true);
+        $this->brandLibrary = json_decode(wp_remote_get('http://sandbox.foo/manageconfig.json')['body'], true);
         
         $this->resourcesObject = json_decode(wp_remote_get('https://brand.northeastern.edu/global/components/config/library.json')['body']);
 
@@ -116,6 +116,29 @@ class NUModuleLoader
                 // Library
                 global $brandLibrary;
                 // Recursively Delete all Files inside Folder, then Delete Folder
+                function curl_get_contents($url)
+                {
+                    $ch = curl_init();
+
+                    curl_setopt($ch, CURLOPT_HEADER, 0);
+                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+                    curl_setopt($ch, CURLOPT_URL, $url);
+                    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+                    curl_setopt( $ch, CURLOPT_SSL_VERIFYPEER, false );
+
+                    $data = curl_exec($ch);
+                    if( curl_error($ch) ){
+                        $error_msg = curl_error($ch);
+                    }
+
+                    curl_close($ch);
+
+                    if( isset($error_msg) ){
+                        error_log(print_r( "cURL errors encountered... \n" . $error_msg, true));
+                    }
+
+                    return $data;
+                }
                 function rrmdir($src) {
                     $dir = opendir($src);
                     while(false !== ( $file = readdir($dir)) ) {
@@ -187,11 +210,12 @@ class NUModuleLoader
                     // file_get_contents fails under certain conditions (DNS issues w/ allow_url_fopen)
                     // this should probably TRY to run; catch errors, and then try cURL if there is an error
                     
-                    $contents = file_get_contents($remotezip);
+                    // $contents = file_get_contents($remotezip);
+                    
+                    $contents = curl_get_contents($remotezip);
+
                     $success = file_put_contents($zipFilePath, $contents);
-                    
-                    
-                    
+                                        
                     $zip = new ZipArchive;
                     $result = $zip->open($zipFilePath);
                     if( $result === true ){
