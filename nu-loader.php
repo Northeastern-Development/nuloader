@@ -1,5 +1,4 @@
 <?php
-
 /**
  * Plugin Name: NU Loader
  * Plugin URI: http://brand.northeastern.edu/wp/plugins/nuloader
@@ -14,21 +13,20 @@ class NUModuleLoader
     var $resourcesObject
         , $resourcesUrl
 		, $brandLibrary
-		, $activeComponentSource
-	;
-	
+        , $activeComponentSource
+    ;
+
 	function __construct()
 	{
-    	// Remote JSON file Location:
+        // Setup Vars for Global Header / Footer
+        $this->resourcesObject = json_decode(wp_remote_get('https://brand.northeastern.edu/global/components/config/library.json')['body']);
+        $this->resourcesUrl = array($this->resourcesObject->config->sourceurl);
+        
+        // Setup Vars for NU Module Loader
         $this->brandLibrary = json_decode(wp_remote_get('http://sandbox.foo/manageconfig.json')['body'], true);
         
-        $this->resourcesObject = json_decode(wp_remote_get('https://brand.northeastern.edu/global/components/config/library.json')['body']);
-
-        $this->resourcesUrl = array($this->resourcesObject->config->sourceurl);
-
 		// Construct for the Admin Area
-		if (is_admin()) {
-
+		if ( is_admin() ) {
 			// check the page templates and other resources to make sure that we have everything that we need in place
 			if (null !== get_option('global_header') && get_option('global_header') == 'on') {
 				$this->checkCustomHook('/header.php', '?><header', '<header', '<?php if(function_exists("NUML_globalheader")){NUML_globalheader();} ?><header');
@@ -43,7 +41,22 @@ class NUModuleLoader
 		// Construct for the Front End
 		else if (!is_admin()) { // this is a front-end request, so build out any front-end components needed
 			$this->frontend();
-		}
+        }
+
+        // Load the Installed Modules
+        $modulesContainer = realpath( __DIR__ . '/components/modules/' );
+        $installed_modules = [];
+        if( $handle = opendir($modulesContainer) ){
+            while( false !== ($entry = readdir($handle)) ){
+                if( $entry != '.' && $entry != ".." && $entry != '.DS_Store' ){
+                    $installed_modules[] = $entry;
+                }
+            }
+            closedir($handle);
+        }
+        foreach( $installed_modules as $installed_module ){
+            include_once($modulesContainer . "/" . $installed_module . "/" . $installed_module . ".php");
+        }
 	}
 
 
@@ -69,183 +82,181 @@ class NUModuleLoader
 	// this function gets run when on the admin pages
 	private function admin_tools()
 	{
-		/* 
-			Begin NU Loader:
-		*/
-			// Add the NULoader Option Page
-			add_action('admin_menu', 'nuloader_add_admin_menu'); // adds menu item to wp dashboard
-			function nuloader_add_admin_menu()
-			{
-				add_menu_page('NU Loader Settings', 'NU Loader', 'manage_options', 'nu_loader', 'settings_page', plugin_dir_url(__FILE__) . '_ui/n.png');
-			}
+        // Globalize the brandLibrary
+        global $brandLibrary;
+        $brandLibrary = $this->brandLibrary;
 
-			// Globalize the brandLibrary
-			global $brandLibrary;
-			$brandLibrary = $this->brandLibrary;
-		
-		
-			// Enqueue NU Loader Styles and Scripts
-			add_action('admin_enqueue_scripts', 'enqueue_jsonlib_scripts');
-			function enqueue_jsonlib_scripts()
-			{
-				wp_enqueue_script('jsonlib_script', plugin_dir_url(__FILE__) . "scripts/json_lib.js");
-				wp_enqueue_style('jsonlib_styles', plugin_dir_url(__FILE__) . "scripts/json_lib.css");
-			}
+        // Add the NULoader Option Page to the Sidebar
+        add_action('admin_menu', 'nuloader_add_admin_menu');
+        function nuloader_add_admin_menu()
+        {
+            add_menu_page('NU Loader Settings', 'NU Loader', 'manage_options', 'nu_loader', 'settings_page', plugin_dir_url(__FILE__) . '_ui/n.png');
+        }
 
-			// Register (whitelist) options for NULoader
-			add_action('admin_init', 'register_mysettings');
-			function register_mysettings()
-			{ // whitelist options
-				register_setting('nu-loader-settings', 'global_material_icons');
-				register_setting('nu-loader-settings', 'global_header');
-				register_setting('nu-loader-settings', 'global_footer');
-                global $brandLibrary;
-                foreach ($brandLibrary['modules'] as $module) {
-                    $option_name = $module['slug'];
-                    register_setting('nu-loader-settings', $option_name);
-                }
-				// Timestamp field for recording the last save changes
-				register_setting('nu-loader-settings', 'last_updated', 'on_nuloader_save_changes');
+        // Enqueue NU Loader Styles and Scripts
+        add_action('admin_enqueue_scripts', 'enqueue_jsonlib_scripts');
+        function enqueue_jsonlib_scripts()
+        {
+            wp_enqueue_script('jsonlib_script', plugin_dir_url(__FILE__) . "scripts/json_lib.js");
+            wp_enqueue_style('jsonlib_styles', plugin_dir_url(__FILE__) . "scripts/json_lib.css");
+        }
+
+        // Register (whitelist) options for NULoader
+        add_action('admin_init', 'register_mysettings');
+        function register_mysettings()
+        { 
+            global $brandLibrary;
+
+            // Register a Setting for each Module
+            foreach ($brandLibrary['modules'] as $module) {
+                $option_name = $module['slug'];
+                register_setting('nu-loader-settings', $option_name);
             }
+            // -- Hidden Setting -- Register "Timestamp" on Save Changes ( with callback to handle logic on saving changes )
+            register_setting('nu-loader-settings', 'last_updated', 'on_nuloader_save_changes');
 
-            /**
-             * On Save Changes Hook:
-             *
-             */
-            function on_nuloader_save_changes(){
-                // Library
-                global $brandLibrary;
-                // Recursively Delete all Files inside Folder, then Delete Folder
-                function curl_get_contents($url)
-                {
-                    $ch = curl_init();
+            // Register Settings for Global Header / Footer and Material Icons
+            register_setting('nu-loader-settings', 'global_material_icons');
+            register_setting('nu-loader-settings', 'global_header');
+            register_setting('nu-loader-settings', 'global_footer');
+        }
 
-                    curl_setopt($ch, CURLOPT_HEADER, 0);
-                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-                    curl_setopt($ch, CURLOPT_URL, $url);
-                    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-                    curl_setopt( $ch, CURLOPT_SSL_VERIFYPEER, false );
+        // Hidden Timestamp Setting Callback ( handle logic on saving changes )
+        function on_nuloader_save_changes(){
 
-                    $data = curl_exec($ch);
-                    if( curl_error($ch) ){
-                        $error_msg = curl_error($ch);
-                    }
+            global $brandLibrary;
 
-                    curl_close($ch);
-
-                    if( isset($error_msg) ){
-                        error_log(print_r( "cURL errors encountered... \n" . $error_msg, true));
-                    }
-
-                    return $data;
-                }
-                function rrmdir($src) {
-                    $dir = opendir($src);
-                    while(false !== ( $file = readdir($dir)) ) {
-                        if (( $file != '.' ) && ( $file != '..' )) {
-                            $full = $src . '/' . $file;
-                            if ( is_dir($full) ) {
-                                rrmdir($full);
-                            }
-                            else {
-                                unlink($full);
-                            }
-                        }
-                    }
-                    closedir($dir);
-                    rmdir($src);
-                }
-                // path to dir containing all installed modules (in subdirs)
-                $modules_dir = __DIR__ . "/components/modules/";
-                // array of paths to each subdirectory of $modules_dir
-                // each should (only) represent an installed module
-                $modules_dir_contents = [];
-                if( $handle = opendir(realpath($modules_dir)) ){
-                    while( false !== ($entry = readdir($handle)) ){
-                        if( $entry != '.' && $entry != ".." && $entry != '.DS_Store' ){
-                            $modules_dir_contents[] = $entry;
-                        }
-                    }
-                    closedir($handle);
-                }
-                // array of option_name values for each checked module submitted on save changes
-                $enabled_mods = array_keys(array_filter($_POST, function($key) {
-                    return strpos($key, 'module-') === 0;
-                }, ARRAY_FILTER_USE_KEY));
-                // array of module information for each of $enabled_mods
-                $enabled_mods_objects = array_filter( $brandLibrary['modules'], function($module) use($enabled_mods){
-                    if( in_array( $module['slug'] , $enabled_mods ) ){
-                        return $module;
-                    }
-                });
-                // array of formatted strings representing paths modules should be extracted to (or already exist within)
-                $enabled_mods_install_dirs = [];
-                foreach ($enabled_mods_objects as $i => $enabled_mod_object) {
-                    $enabled_mods_install_dirs[] = $enabled_mod_object['slug'] . "_v" . $enabled_mod_object['version'];
-                }
-                // array of paths that already exist locally from the submitted option_names after formatting w/ version
-                $verified_local_mods = array_intersect($modules_dir_contents, $enabled_mods_install_dirs);
-                // (may want to check that the dir is not empty as well)
-                // array of paths that already exist locally that DO NOT match submitted option_names after formatting w/ version
-                $modules_dir_junk = array_diff($modules_dir_contents, $enabled_mods_install_dirs);
-                if( !empty($modules_dir_junk) ){
-                    foreach( $modules_dir_junk as $i => $junk ){
-                        if( is_file(realpath($modules_dir . $junk)) ){
-                            unlink($modules_dir.$junk);
-                        } elseif( is_dir($modules_dir.$junk) ){
-                            rrmdir($modules_dir.$junk);
-                        }
-                    }
-                }
-
-                function cleanup_extracted_module_zip($zipFilePath){
-                    if( is_writeable($zipFilePath)){
-                        unlink($zipFilePath);
-                    }
-                }
-                function download_nu_module_zip($module, $zipFilePath, $moduleDirPath){
-                    $remotezip = $module['gitlink'];
-                    
-                    
-                    // file_get_contents fails under certain conditions (DNS issues w/ allow_url_fopen)
-                    // this should probably TRY to run; catch errors, and then try cURL if there is an error
-                    
-                    // $contents = file_get_contents($remotezip);
-                    
-                    $contents = curl_get_contents($remotezip);
-
-                    $success = file_put_contents($zipFilePath, $contents);
-                                        
-                    $zip = new ZipArchive;
-                    $result = $zip->open($zipFilePath);
-                    if( $result === true ){
-                        $zip->extractTo( $moduleDirPath );
-                        $zip->close();
-                    }
-                    cleanup_extracted_module_zip($zipFilePath);
-                }
-                foreach( $enabled_mods_objects as $module ){
-                    $moduleDirPath = $modules_dir . $module['slug'] . "_v" . $module['version'];
-                    $zipFilePath = realpath($modules_dir)."/".$module['slug'].".zip";
-                    if( !is_dir($moduleDirPath) ){
-                        download_nu_module_zip($module, $zipFilePath, $moduleDirPath);
-                    }
-                }
-            }
-
-            // called to output the content of the 'nu_loader' page added above
-            function settings_page()
+            // Download a File with cURL
+            function curl_get_contents($url)
             {
-                include('interfaces/settings.php'); // call in the settings interface
+                $ch = curl_init();
+                curl_setopt($ch, CURLOPT_HEADER, 0);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+                curl_setopt($ch, CURLOPT_URL, $url);
+                curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+                curl_setopt( $ch, CURLOPT_SSL_VERIFYPEER, false );
+                $data = curl_exec($ch);
+                if( curl_error($ch) ){
+                    $error_msg = curl_error($ch);
+                }
+                curl_close($ch);
+                if( isset($error_msg) ){
+                    error_log(print_r( "cURL errors encountered... \n" . $error_msg, true));
+                }
+                return $data;
             }
-        /* 
-            End NULoader
-        */
+            // Recursively Delete all Files inside Folder, then Delete Folder
+            function rrmdir($src)
+            {
+                $dir = opendir($src);
+                while(false !== ( $file = readdir($dir)) ) {
+                    if (( $file != '.' ) && ( $file != '..' )) {
+                        $full = $src . '/' . $file;
+                        if ( is_dir($full) ) {
+                            rrmdir($full);
+                        }
+                        else {
+                            unlink($full);
+                        }
+                    }
+                }
+                closedir($dir);
+                rmdir($src);
+            }
+
+            // path to dir containing all installed modules (in subdirs)
+            $modules_dir = __DIR__ . "/components/modules/";
+            // array of paths to each subdirectory of $modules_dir
+            // each should (only) represent an installed module
+            $modules_dir_contents = [];
+            if( $handle = opendir(realpath($modules_dir)) ){
+                while( false !== ($entry = readdir($handle)) ){
+                    if( $entry != '.' && $entry != ".." && $entry != '.DS_Store' ){
+                        $modules_dir_contents[] = $entry;
+                    }
+                }
+                closedir($handle);
+            }
+            // array of option_name values for each checked module submitted on save changes
+            $enabled_mods = array_keys(array_filter($_POST, function($key) {
+                return strpos($key, 'module-') === 0;
+            }, ARRAY_FILTER_USE_KEY));
+            // array of module information for each of $enabled_mods
+            $enabled_mods_objects = array_filter( $brandLibrary['modules'], function($module) use($enabled_mods){
+                if( in_array( $module['slug'] , $enabled_mods ) ){
+                    return $module;
+                }
+            });
+            // array of formatted strings representing paths modules should be extracted to (or already exist within)
+            $enabled_mods_install_dirs = [];
+            foreach ($enabled_mods_objects as $i => $enabled_mod_object) {
+                $enabled_mods_install_dirs[] = $enabled_mod_object['slug'] . "_v" . $enabled_mod_object['version'];
+            }
+
+
+            
+            // array of paths that already exist locally from the submitted option_names after formatting w/ version
+            $verified_local_mods = array_intersect($modules_dir_contents, $enabled_mods_install_dirs);
+
+            // (may want to check that the dir is not empty as well)
+            // array of paths that already exist locally that DO NOT match submitted option_names after formatting w/ version
+            $modules_dir_junk = array_diff($modules_dir_contents, $enabled_mods_install_dirs);
+            if( !empty($modules_dir_junk) ){
+                foreach( $modules_dir_junk as $i => $junk ){
+                    if( is_file(realpath($modules_dir . $junk)) ){
+                        unlink($modules_dir.$junk);
+                    } elseif( is_dir($modules_dir.$junk) ){
+                        rrmdir($modules_dir.$junk);
+                    }
+                }
+            }
+
+            function cleanup_extracted_module_zip($zipFilePath){
+                if( is_writeable($zipFilePath)){
+                    unlink($zipFilePath);
+                }
+            }
+
+            function download_nu_module_zip($module, $zipFilePath, $moduleDirPath){
+                $remotezip = $module['gitlink'];
+                
+                // $contents = file_get_contents($remotezip);
+                $contents = curl_get_contents($remotezip);
+
+                $success = file_put_contents($zipFilePath, $contents);
+                                    
+                $zip = new ZipArchive;
+                $result = $zip->open($zipFilePath);
+                if( $result === true ){
+                    $zip->extractTo( $moduleDirPath );
+                    $zip->close();
+                }
+                cleanup_extracted_module_zip($zipFilePath);
+            }
+
+            foreach( $enabled_mods_objects as $module ){
+                $moduleDirPath = $modules_dir . $module['slug'] . "_v" . $module['version'];
+                $zipFilePath = realpath($modules_dir)."/".$module['slug'].".zip";
+                if( !is_dir($moduleDirPath) ){
+                    download_nu_module_zip($module, $zipFilePath, $moduleDirPath);
+                }
+            }
+        }
+
+        // called to output the content of the 'nu_loader' page added above
+        function settings_page()
+        {
+            include('interfaces/settings.php'); // call in the settings interface
+        }
+
+        // Redirect? Thing?
         register_activation_hook(__FILE__, 'nu_loader_plugin_activate');
 		function nu_loader_plugin_activate()
 		{
-			add_option('nu_loader_plugin_do_activation_redirect', true);
-		}
+            add_option('nu_loader_plugin_do_activation_redirect', true);
+        }
+        
+        // Redirect? Thing?
 		add_action('admin_init', 'nu_loader_plugin_redirect');
 		function nu_loader_plugin_redirect()
 		{
@@ -315,10 +326,6 @@ class NUModuleLoader
 			unset($return);
 		}
 	}
-
-
-
-
 
 	// this function performs the actual remote content request and returns only the body value
 	private function getRemoteContent($a = '') : string
