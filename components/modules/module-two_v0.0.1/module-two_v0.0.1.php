@@ -1,6 +1,6 @@
 <?php
     
-    $moduleName = "Module One";
+    $moduleName = "Module Two";
 
     echo $moduleName;
 

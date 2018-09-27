@@ -43,20 +43,39 @@ class NUModuleLoader
 			$this->frontend();
         }
 
-        // Load the Installed Modules
-        $modulesContainer = realpath( __DIR__ . '/components/modules/' );
-        $installed_modules = [];
-        if( $handle = opendir($modulesContainer) ){
-            while( false !== ($entry = readdir($handle)) ){
-                if( $entry != '.' && $entry != ".." && $entry != '.DS_Store' ){
-                    $installed_modules[] = $entry;
+        function include_installed_modules(){
+            $modulesContainer = realpath( __DIR__ . '/components/modules/' );
+            $installed_modules = [];
+            if( $handle = opendir($modulesContainer) ){
+                while( false !== ($entry = readdir($handle)) ){
+                    if( $entry != '.' && $entry != ".." && $entry != '.DS_Store' ){
+                        $installed_modules[] = $entry;
+                    }
+                }
+                closedir($handle);
+            }
+            foreach( $installed_modules as $installed_module ){
+                include_once($modulesContainer . "/" . $installed_module . "/" . $installed_module . ".php");
+            }
+        }
+        
+        if( is_admin() ){
+            add_action('current_screen', 'check_the_current_screen');
+            function check_the_current_screen(){
+                $screen = get_current_screen();
+                // blacklist certain admin area pages from loading modules
+                if( $screen->id == 'toplevel_page_nu_loader' || $screen->id == 'options' ){
+                    return;
+                } else {
+                    // Load the Installed Modules
+                    include_installed_modules();
                 }
             }
-            closedir($handle);
+        } else {
+            include_installed_modules();
         }
-        foreach( $installed_modules as $installed_module ){
-            include_once($modulesContainer . "/" . $installed_module . "/" . $installed_module . ".php");
-        }
+        
+
 	}
 
 
