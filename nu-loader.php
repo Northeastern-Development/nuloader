@@ -43,7 +43,13 @@ class NUModuleLoader
 			$this->frontend();
         }
 
-        function include_installed_modules(){
+        // Exec Modules
+        $this->handle_exec_installed_modules();
+
+	}
+    
+    private function handle_exec_installed_modules(){
+        function do_exec_nu_modules(){
             $modulesContainer = realpath( __DIR__ . '/components/modules/' );
             $installed_modules = [];
             if( $handle = opendir($modulesContainer) ){
@@ -58,26 +64,26 @@ class NUModuleLoader
                 include_once($modulesContainer . "/" . $installed_module . "/" . $installed_module . ".php");
             }
         }
-        
+
+        global $pagenow;
+        $getPageBlacklist = [
+            'nu_loader',
+        ];
+
         if( is_admin() ){
-            add_action('current_screen', 'check_the_current_screen');
-            function check_the_current_screen(){
-                $screen = get_current_screen();
-                // blacklist certain admin area pages from loading modules
-                if( $screen->id == 'toplevel_page_nu_loader' || $screen->id == 'options' ){
-                    return;
-                } else {
-                    // Load the Installed Modules
-                    include_installed_modules();
-                }
+            if( $pagenow === 'options.php' || in_array($_GET['page'], $getPageBlacklist ) ) {
+                // do not exec modules on the options.php admin page; or any blacklisted pages
+                return;
+            } else {
+                // exec modules anywhere else within the admin area
+                do_exec_nu_modules();
             }
         } else {
-            include_installed_modules();
+            // always exec modules on front end
+            do_exec_nu_modules();
         }
-        
 
-	}
-
+    }
 
 
 	// check to see if the requested module has already been initialized
