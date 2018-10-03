@@ -1,11 +1,9 @@
+<?php /* Template Name: Search Template */ ?>
+
 <?php 
-/**
- * Template Name: search page template
- */
 
 
-
-
+echo "<h1>TEST</h1>";
 
 
 

@@ -44,7 +44,7 @@ class NUModuleLoader
         }
 
 
-        // Handle Conditionally Loading the NU Modules
+
         $this->handle_exec_installed_modules();
 	}
     
@@ -119,7 +119,7 @@ class NUModuleLoader
             'options.php',
             'options-permalink.php',
             'customize.php',
-            'post.php',
+            // 'post.php',
             // 'edit.php',
             'plugins.php',
             'tools.php' // wp db migrate on success; redirects to:  wp-admin/tools.php?page=wp-migrate-db-pro (and some more query stuff depending on settings)

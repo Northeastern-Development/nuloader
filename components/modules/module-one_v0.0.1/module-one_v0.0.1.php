@@ -8,7 +8,31 @@
         var $someVars;
 
         function __construct(){
+            
             add_action('admin_init', array($this, 'check_for_search_page'));
+            
+
+            add_filter( 'page_template', 'override_default_page_template' );
+            function override_default_page_template( $page_template )
+            {
+                if ( is_page( 'search' ) ) {
+                    $page_template = dirname( __FILE__ ) . '/search-page-template.php';
+                }
+                return $page_template;
+            }
+
+            // NOT WORKING
+            // I DONT KNOW WHY THIS WONT WORK THO...
+                // add_filter( 'template_include', 'portfolio_page_template', 99 );
+                // function portfolio_page_template( $template ) {
+                //     if ( is_page( 'search' ) ) {
+                //         $new_template = locate_template(dirname( __FILE__ ) . '/search-page-template.php');
+                //         if ( !empty( $new_template ) ) {
+                //             return $new_template;
+                //         }
+                //     }
+                //     return $template;
+                // }
         }
 
         function check_for_search_page(){
@@ -79,8 +103,6 @@
 
 
         function do_configure_search_page($page_id){
-
-            // assign the page template!
 
         }
 
