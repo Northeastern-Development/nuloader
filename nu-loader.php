@@ -43,15 +43,24 @@ class NUModuleLoader
 			$this->frontend();
         }
 
-        // Exec Modules
-        $this->handle_exec_installed_modules();
 
+        // Handle Conditionally Loading the NU Modules
+        $this->handle_exec_installed_modules();
 	}
     
+    /**
+     * Handle Conditionally Loading NU Modules
+     */
     private function handle_exec_installed_modules(){
+        /**
+         * execute (include_once) each installed module
+         */
         function do_exec_nu_modules(){
+            // set modules dir
             $modulesContainer = realpath( __DIR__ . '/components/modules/' );
+            // prep installed modules array
             $installed_modules = [];
+            // populate installed modules array
             if( $handle = opendir($modulesContainer) ){
                 while( false !== ($entry = readdir($handle)) ){
                     if( $entry != '.' && $entry != ".." && $entry != '.DS_Store' ){
@@ -60,29 +69,81 @@ class NUModuleLoader
                 }
                 closedir($handle);
             }
+            // include_once each modules base.php
             foreach( $installed_modules as $installed_module ){
                 include_once($modulesContainer . "/" . $installed_module . "/" . $installed_module . ".php");
             }
         }
 
+
+
         global $pagenow;
+        
+        $module_execution_blacklist = [
+            // easiest, most preferable option where it works:
+            // i.e. $pagenow === 'pageslug'
+            'pagenow' => array(
+                // use $pagenow global
+                'options.php',
+                'options-permalink.php',
+                'customize.php',
+                'post.php',
+                'edit.php',
+                'plugins.php',
+                'tools.php',
+            ),
+            // i.e. $_GET['page'] === 'pageslug'
+            '_get' => array(
+                'nu_loader',
+            ),
+            // i.e. trim( $_SERVER["REQUEST_URI"] , '/' ) === 'pageslug'
+            '_server' => array(
+                'neulogin',
+            ),
+            // i.e. $_GET['action'] === 'action'
+            '_action' => array(
+                'logout',
+            ),
+        ];
+        
+        
+        
         $getPageBlacklist = [
             'nu_loader',
         ];
+        $getActionBlacklist = [
+            'logout',
+            // 'login'
+        ];
+        $pagenowBlacklist = [
+            'options.php',
+            'options-permalink.php',
+            'customize.php',
+            'post.php',
+            // 'edit.php',
+            'plugins.php',
+            'tools.php' // wp db migrate on success; redirects to:  wp-admin/tools.php?page=wp-migrate-db-pro (and some more query stuff depending on settings)
+        ];
 
-        if( is_admin() ){
-            if( $pagenow === 'options.php' || in_array($_GET['page'], $getPageBlacklist ) ) {
-                // do not exec modules on the options.php admin page; or any blacklisted pages
-                return;
+
+
+        // prevent exec on 'neulogin' custom login page (optional?)
+        if( trim( $_SERVER["REQUEST_URI"] , '/' ) === 'neulogin' || in_array($_GET['action'], $getActionBlacklist) || $_GET['loggedout'] === "true" ){
+            return;
+        } else {
+            if( is_admin() ){
+                if( in_array($pagenow, $pagenowBlacklist) || in_array($_GET['page'], $getPageBlacklist ) ) {
+                    // do not exec modules on the options.php admin page; or any blacklisted pages
+                    return;
+                } else {
+                    // exec modules anywhere else within the admin area
+                    do_exec_nu_modules();
+                }
             } else {
-                // exec modules anywhere else within the admin area
+                // always exec modules on front end
                 do_exec_nu_modules();
             }
-        } else {
-            // always exec modules on front end
-            do_exec_nu_modules();
         }
-
     }
 
 
