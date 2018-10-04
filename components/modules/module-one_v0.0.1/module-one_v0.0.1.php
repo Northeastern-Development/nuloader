@@ -20,19 +20,6 @@
                 }
                 return $page_template;
             }
-
-            // NOT WORKING
-            // I DONT KNOW WHY THIS WONT WORK THO...
-                // add_filter( 'template_include', 'portfolio_page_template', 99 );
-                // function portfolio_page_template( $template ) {
-                //     if ( is_page( 'search' ) ) {
-                //         $new_template = locate_template(dirname( __FILE__ ) . '/search-page-template.php');
-                //         if ( !empty( $new_template ) ) {
-                //             return $new_template;
-                //         }
-                //     }
-                //     return $template;
-                // }
         }
 
         function check_for_search_page(){
