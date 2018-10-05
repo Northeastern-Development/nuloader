@@ -33,6 +33,8 @@ if( !empty($brandLibrary) )
     $timestamp = date("M j, Y, g:i:s", time());
     // Add a hidden input (already whitelisted) that stores the time 'save changes' submitted all the options to the DB
     $libmod_output .= "<tr><td><input type=\"hidden\" name=\"last_updated\" value=\"$timestamp\" /></td></tr>";
+} else {
+    $libmod_output = '<tr><td colspan="2">Error: Module Library is Unavailable</td></tr>';
 }
 
 // 
