@@ -28,7 +28,7 @@ class NUModuleLoader
          * if recieved, set and globalize
          * if wp_remote_get returns a wp_error, display this to the user
          */
-        $remote_module_library_file = 'http://sandbox.fo/manageconfig.json';
+        $remote_module_library_file = 'http://sandbox.foo/manageconfig.json';
         if( !is_wp_error(wp_remote_get($remote_module_library_file)) ){
             $this->brandLibrary = json_decode(wp_remote_get($remote_module_library_file)['body'], true);
             global $brandLibrary;
@@ -294,14 +294,18 @@ class NUModuleLoader
                 
                 // $contents = file_get_contents($remotezip);
                 $contents = curl_get_contents($remotezip);
-
+                
                 $success = file_put_contents($zipFilePath, $contents);
-                                    
-                $zip = new ZipArchive;
-                $result = $zip->open($zipFilePath);
-                if( $result === true ){
-                    $zip->extractTo( $moduleDirPath );
-                    $zip->close();
+                
+                $hashCheck = verify_file_md5($zipFilePath, $module['hash']);
+
+                if( $hashCheck == 1 ){
+                    $zip = new ZipArchive;
+                    $result = $zip->open($zipFilePath);
+                    if( $result === true ){
+                        $zip->extractTo( $moduleDirPath );
+                        $zip->close();
+                    }
                 }
                 cleanup_extracted_module_zip($zipFilePath);
             }
