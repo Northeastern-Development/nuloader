@@ -22,11 +22,31 @@ class NUModuleLoader
         $this->resourcesObject = json_decode(wp_remote_get('https://brand.northeastern.edu/global/components/config/library.json')['body']);
         $this->resourcesUrl = array($this->resourcesObject->config->sourceurl);
         
-        // Setup Vars for NU Module Loader
-        $this->brandLibrary = json_decode(wp_remote_get('http://sandbox.foo/manageconfig.json')['body'], true);
         
-		// Construct for the Admin Area
-		if ( is_admin() ) {
+        /**
+         * try wp_remote_get on the remote json module file,
+         * if recieved, set and globalize
+         * if wp_remote_get returns a wp_error, display this to the user
+         */
+        $remote_module_library_file = 'http://sandbox.fo/manageconfig.json';
+        if( !is_wp_error(wp_remote_get($remote_module_library_file)) ){
+            $this->brandLibrary = json_decode(wp_remote_get($remote_module_library_file)['body'], true);
+            global $brandLibrary;
+            $brandLibrary = $this->brandLibrary;
+        } else {
+            // just log for now; find where to present this later
+            error_log(print_r($remote_module_library_file, true));
+        }
+
+        /**
+         * handle any installed modules
+         */
+        $this->handle_exec_installed_modules();
+        
+        
+        // Construct for the Admin Area
+        if ( is_admin() )
+        {
 			// check the page templates and other resources to make sure that we have everything that we need in place
 			if (null !== get_option('global_header') && get_option('global_header') == 'on') {
 				$this->checkCustomHook('/header.php', '?><header', '<header', '<?php if(function_exists("NUML_globalheader")){NUML_globalheader();} ?><header');
@@ -39,15 +59,13 @@ class NUModuleLoader
 			$this->admin_tools(); // add the tools to manage settings
 		}
 		// Construct for the Front End
-		else if (!is_admin()) { // this is a front-end request, so build out any front-end components needed
+        else if (!is_admin())
+        { // this is a front-end request, so build out any front-end components needed
 			$this->frontend();
         }
+    }
 
 
-
-        $this->handle_exec_installed_modules();
-	}
-    
     /**
      * Handle Conditionally Loading NU Modules
      */
@@ -55,12 +73,10 @@ class NUModuleLoader
         /**
          * execute (include_once) each installed module
          */
-        function do_exec_nu_modules(){
-            // set modules dir
-            $modulesContainer = realpath( __DIR__ . '/components/modules/' );
-            // prep installed modules array
+        function do_exec_nu_modules()
+        {
             $installed_modules = [];
-            // populate installed modules array
+            $modulesContainer = realpath( __DIR__ . '/components/modules/' );
             if( $handle = opendir($modulesContainer) ){
                 while( false !== ($entry = readdir($handle)) ){
                     if( $entry != '.' && $entry != ".." && $entry != '.DS_Store' ){
@@ -75,39 +91,7 @@ class NUModuleLoader
             }
         }
 
-
-
         global $pagenow;
-        
-        $module_execution_blacklist = [
-            // easiest, most preferable option where it works:
-            // i.e. $pagenow === 'pageslug'
-            'pagenow' => array(
-                // use $pagenow global
-                'options.php',
-                'options-permalink.php',
-                'customize.php',
-                'post.php',
-                'edit.php',
-                'plugins.php',
-                'tools.php',
-            ),
-            // i.e. $_GET['page'] === 'pageslug'
-            '_get' => array(
-                'nu_loader',
-            ),
-            // i.e. trim( $_SERVER["REQUEST_URI"] , '/' ) === 'pageslug'
-            '_server' => array(
-                'neulogin',
-            ),
-            // i.e. $_GET['action'] === 'action'
-            '_action' => array(
-                'logout',
-            ),
-        ];
-        
-        
-        
         $getPageBlacklist = [
             'nu_loader',
         ];
@@ -125,12 +109,13 @@ class NUModuleLoader
             'tools.php' // wp db migrate on success; redirects to:  wp-admin/tools.php?page=wp-migrate-db-pro (and some more query stuff depending on settings)
         ];
 
-
-
         // prevent exec on 'neulogin' custom login page (optional?)
-        if( trim( $_SERVER["REQUEST_URI"] , '/' ) === 'neulogin' || in_array($_GET['action'], $getActionBlacklist) || $_GET['loggedout'] === "true" ){
+        if( trim( $_SERVER["REQUEST_URI"] , '/' ) === 'neulogin' || in_array($_GET['action'], $getActionBlacklist) || $_GET['loggedout'] === "true" )
+        {
             return;
-        } else {
+        }
+        else
+        {
             if( is_admin() ){
                 if( in_array($pagenow, $pagenowBlacklist) || in_array($_GET['page'], $getPageBlacklist ) ) {
                     // do not exec modules on the options.php admin page; or any blacklisted pages
@@ -168,10 +153,6 @@ class NUModuleLoader
 	// this function gets run when on the admin pages
 	private function admin_tools()
 	{
-        // Globalize the brandLibrary
-        global $brandLibrary;
-        $brandLibrary = $this->brandLibrary;
-
         // Add the NULoader Option Page to the Sidebar
         add_action('admin_menu', 'nuloader_add_admin_menu');
         function nuloader_add_admin_menu()
@@ -192,14 +173,19 @@ class NUModuleLoader
         function register_mysettings()
         { 
             global $brandLibrary;
-
-            // Register a Setting for each Module
-            foreach ($brandLibrary['modules'] as $module) {
-                $option_name = $module['slug'];
-                register_setting('nu-loader-settings', $option_name);
+            if( !empty($brandLibrary) )
+            {
+                // Register a Setting for each Module
+                foreach ($brandLibrary['modules'] as $module) {
+                    $option_name = $module['slug'];
+                    register_setting('nu-loader-settings', $option_name);
+                }
+                // -- Hidden Setting -- Register "Timestamp" on Save Changes ( with callback to handle logic on saving changes )
+                register_setting('nu-loader-settings', 'last_updated', 'on_nuloader_save_changes');
+            } elseif( empty($brandLibrary)){
+                error_log(print_r('no brandlibrary loaded, settings will not be loaded', true));
             }
-            // -- Hidden Setting -- Register "Timestamp" on Save Changes ( with callback to handle logic on saving changes )
-            register_setting('nu-loader-settings', 'last_updated', 'on_nuloader_save_changes');
+
 
             // Register Settings for Global Header / Footer and Material Icons
             register_setting('nu-loader-settings', 'global_material_icons');
