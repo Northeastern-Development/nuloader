@@ -10,7 +10,9 @@ if(!isset($_GET['query']) || $_GET['query'] == ''){
  ?>
     <main>
 
+        <section>
         <script src="https://search.northeastern.edu/nuglobalutils/requests/js/globalsearch.js"></script>
+        </section>
 
 
     </main>

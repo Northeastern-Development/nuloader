@@ -8,7 +8,10 @@
             add_action('admin_init', array($this, 'check_for_search_page'));
             add_action('pre_get_posts', array($this, 'lock_search_page'));
             $this->override_page_template();
-        }        
+        }
+        public static function do_deactivate_module(){
+            error_log('do deactivate module hook fired');
+        }
         /**
          * check for the search page; creating it if required
          */

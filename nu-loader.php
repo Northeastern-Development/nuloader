@@ -193,11 +193,14 @@ class NUModuleLoader
             register_setting('nu-loader-settings', 'global_footer');
         }
 
-        // Hidden Timestamp Setting Callback ( handle logic on saving changes )
+        /**
+         * executes when the nu_loader save changes button is clicked
+         * hooked to the hidden timestamp field (module loader)
+         * $brandLibrary is gauranteed to exist if this setting exists
+         */
         function on_nuloader_save_changes(){
-
+            // will always exist
             global $brandLibrary;
-
             // Download a File with cURL
             function curl_get_contents($url)
             {
@@ -235,7 +238,6 @@ class NUModuleLoader
                 closedir($dir);
                 rmdir($src);
             }
-
             // path to dir containing all installed modules (in subdirs)
             $modules_dir = __DIR__ . "/components/modules/";
             // array of paths to each subdirectory of $modules_dir
@@ -264,24 +266,32 @@ class NUModuleLoader
             foreach ($enabled_mods_objects as $i => $enabled_mod_object) {
                 $enabled_mods_install_dirs[] = $enabled_mod_object['slug'] . "_v" . $enabled_mod_object['version'];
             }
-
-
             
             // array of paths that already exist locally from the submitted option_names after formatting w/ version
             $verified_local_mods = array_intersect($modules_dir_contents, $enabled_mods_install_dirs);
 
             // (may want to check that the dir is not empty as well)
+
             // array of paths that already exist locally that DO NOT match submitted option_names after formatting w/ version
             $modules_dir_junk = array_diff($modules_dir_contents, $enabled_mods_install_dirs);
             if( !empty($modules_dir_junk) ){
                 foreach( $modules_dir_junk as $i => $junk ){
                     if( is_file(realpath($modules_dir . $junk)) ){
+                        // 
+                        // THIS IS JUST A EXTRA CHECK FOR EXTRANEOUS STUFF THAT MAY HAVE FALLEN INTO THIS FOLDER
+                        // 
                         unlink($modules_dir.$junk);
                     } elseif( is_dir($modules_dir.$junk) ){
+
+                        /**
+                         * THIS IS WHERE I CHECK FOR AND RUN A DEACTIVATION HOOK!!
+                         */
                         rrmdir($modules_dir.$junk);
                     }
                 }
             }
+
+
 
             function cleanup_extracted_module_zip($zipFilePath){
                 if( is_writeable($zipFilePath)){
