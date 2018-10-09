@@ -16,13 +16,20 @@ class NUModuleLoader
         , $activeComponentSource
     ;
 
+
 	function __construct()
 	{
-        // Setup Vars for Global Header / Footer
-        $this->resourcesObject = json_decode(wp_remote_get('https://brand.northeastern.edu/global/components/config/library.json')['body']);
-        $this->resourcesUrl = array($this->resourcesObject->config->sourceurl);
-        
-        
+        /**
+         * try to wp_remote_get the global library file
+         * if received, set
+         * if error, notify...
+         */
+        $remote_global_components_library = 'https://brand.northeastern.edu/global/components/config/library.json';
+        if( !is_wp_error(wp_remote_get($remote_global_components_library)) ){
+            // Setup Vars for Global Header / Footer
+            $this->resourcesObject = json_decode(wp_remote_get($remote_global_components_library)['body']);
+            $this->resourcesUrl = array($this->resourcesObject->config->sourceurl);
+        }
         /**
          * try wp_remote_get on the remote json module file,
          * if recieved, set and globalize
@@ -33,26 +40,17 @@ class NUModuleLoader
             $this->brandLibrary = json_decode(wp_remote_get($remote_module_library_file)['body'], true);
             global $brandLibrary;
             $brandLibrary = $this->brandLibrary;
-        } else {
-            // just log for now; find where to present this later
-            error_log(print_r($remote_module_library_file, true));
         }
-
-        /**
-         * handle any installed modules
-         */
-        $this->handle_exec_installed_modules();
-        
         
         // Construct for the Admin Area
         if ( is_admin() )
         {
-			// check the page templates and other resources to make sure that we have everything that we need in place
+            // check the page templates and other resources to make sure that we have everything that we need in place
 			if (null !== get_option('global_header') && get_option('global_header') == 'on') {
-				$this->checkCustomHook('/header.php', '?><header', '<header', '<?php if(function_exists("NUML_globalheader")){NUML_globalheader();} ?><header');
+                $this->checkCustomHook('/header.php', '?><header', '<header', '<?php if(function_exists("NUML_globalheader")){NUML_globalheader();} ?><header');
 			}
 			if (null !== get_option('global_footer') && get_option('global_footer') == 'on') {
-        		// require_once('components/footer.php');
+                // require_once('components/footer.php');
 				$this->checkCustomHook('/footer.php', '</footer><?php', '</footer>', '</footer><?php if(function_exists("NUML_globalfooter")){NUML_globalfooter();} ?>');
 			}
 			// Create / Render Admin Area Customizations and Tools
@@ -63,15 +61,21 @@ class NUModuleLoader
         { // this is a front-end request, so build out any front-end components needed
 			$this->frontend();
         }
-    }
 
+         /**
+         * handle any installed modules
+         */
+        $this->handle_exec_installed_modules();
+    }
 
     /**
      * Handle Conditionally Loading NU Modules
      */
-    private function handle_exec_installed_modules(){
+    private function handle_exec_installed_modules()
+    {
         /**
-         * execute (include_once) each installed module
+         * include_once each module in the modules dir
+         * expects a .php file in each dir w/ the same name as the folder containing it
          */
         function do_exec_nu_modules()
         {
@@ -90,45 +94,30 @@ class NUModuleLoader
                 include_once($modulesContainer . "/" . $installed_module . "/" . $installed_module . ".php");
             }
         }
-
-        global $pagenow;
-        $getPageBlacklist = [
-            'nu_loader',
-        ];
-        $getActionBlacklist = [
-            'logout',
-            // 'login'
-        ];
-        $pagenowBlacklist = [
-            'options.php',
-            'options-permalink.php',
-            'customize.php',
-            // 'post.php',
-            // 'edit.php',
-            'plugins.php',
-            'tools.php' // wp db migrate on success; redirects to:  wp-admin/tools.php?page=wp-migrate-db-pro (and some more query stuff depending on settings)
-        ];
-
-        // prevent exec on 'neulogin' custom login page (optional?)
-        if( trim( $_SERVER["REQUEST_URI"] , '/' ) === 'neulogin' || in_array($_GET['action'], $getActionBlacklist) || $_GET['loggedout'] === "true" )
+        /**
+         * check the current page against a blacklist
+         * prevent execution of the nu_modules if they meet certain criterea
+         */
+        function verify_module_execution()
         {
-            return;
-        }
-        else
-        {
+            global $pagenow;
+            $exec_blacklist = [
+                // 'nu_loader'
+            ];
+            // conditionally execute in the admin area
             if( is_admin() ){
-                if( in_array($pagenow, $pagenowBlacklist) || in_array($_GET['page'], $getPageBlacklist ) ) {
-                    // do not exec modules on the options.php admin page; or any blacklisted pages
+                if ( in_array($pagenow, $exec_blacklist) || in_array($_GET['page'], $exec_blacklist) ) {
                     return;
                 } else {
-                    // exec modules anywhere else within the admin area
                     do_exec_nu_modules();
                 }
-            } else {
-                // always exec modules on front end
+            }
+            // always exec on front end
+            else {
                 do_exec_nu_modules();
             }
         }
+        verify_module_execution();
     }
 
 
@@ -182,8 +171,6 @@ class NUModuleLoader
                 }
                 // -- Hidden Setting -- Register "Timestamp" on Save Changes ( with callback to handle logic on saving changes )
                 register_setting('nu-loader-settings', 'last_updated', 'on_nuloader_save_changes');
-            } elseif( empty($brandLibrary)){
-                error_log(print_r('no brandlibrary loaded, settings will not be loaded', true));
             }
 
 
@@ -199,6 +186,7 @@ class NUModuleLoader
          * $brandLibrary is gauranteed to exist if this setting exists
          */
         function on_nuloader_save_changes(){
+            
             // will always exist
             global $brandLibrary;
             // Download a File with cURL
@@ -282,10 +270,10 @@ class NUModuleLoader
                         // 
                         unlink($modules_dir.$junk);
                     } elseif( is_dir($modules_dir.$junk) ){
-
                         /**
                          * THIS IS WHERE I CHECK FOR AND RUN A DEACTIVATION HOOK!!
                          */
+
                         rrmdir($modules_dir.$junk);
                     }
                 }
