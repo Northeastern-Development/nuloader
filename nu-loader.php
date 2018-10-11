@@ -2,7 +2,10 @@
 /**
  * Plugin Name: NU Loader
  * Plugin URI: http://brand.northeastern.edu/wp/plugins/nuloader
- * Description: This plugin adds global university system functionality to your site, including: styles, super nav, utility nav, and footer.  If needed, this plugin will automatically add custom hooks to various locations within your sites theme files.  This is to allow custom content to be delivered and shown according to university brand guidelines.
+ * Description: 
+ *              This plugin adds global university system functionality to your site, including: styles, super nav, utility nav, and footer.
+ *              If needed, this plugin will automatically add custom hooks to various locations within your sites theme files. 
+ *              This is to allow custom content to be delivered and shown according to university brand guidelines.
  * Version: 1.0.0
  * Author: Northeastern University System
  * Author URI: http://www.northeastern.edu/externalaffairs
@@ -58,10 +61,9 @@ class NUModuleLoader
 		}
 		// Construct for the Front End
         else if (!is_admin())
-        { // this is a front-end request, so build out any front-end components needed
+        {
 			$this->frontend();
         }
-
          /**
          * handle any installed modules
          */
@@ -186,9 +188,10 @@ class NUModuleLoader
          * $brandLibrary is gauranteed to exist if this setting exists
          */
         function on_nuloader_save_changes(){
-            
             // will always exist
             global $brandLibrary;
+            // directory containing installed modules
+            $modules_dir = __DIR__ . "/components/modules/";
             // Download a File with cURL
             function curl_get_contents($url)
             {
@@ -226,68 +229,14 @@ class NUModuleLoader
                 closedir($dir);
                 rmdir($src);
             }
-            // path to dir containing all installed modules (in subdirs)
-            $modules_dir = __DIR__ . "/components/modules/";
-            // array of paths to each subdirectory of $modules_dir
-            // each should (only) represent an installed module
-            $modules_dir_contents = [];
-            if( $handle = opendir(realpath($modules_dir)) ){
-                while( false !== ($entry = readdir($handle)) ){
-                    if( $entry != '.' && $entry != ".." && $entry != '.DS_Store' ){
-                        $modules_dir_contents[] = $entry;
+            // Download, hash check, extract and cleanup for modules to be installed
+            function download_nu_module_zip($module, $zipFilePath, $moduleDirPath)
+            {
+                function cleanup_extracted_module_zip($zipFilePath){
+                    if( is_writeable($zipFilePath)){
+                        unlink($zipFilePath);
                     }
                 }
-                closedir($handle);
-            }
-            // array of option_name values for each checked module submitted on save changes
-            $enabled_mods = array_keys(array_filter($_POST, function($key) {
-                return strpos($key, 'module-') === 0;
-            }, ARRAY_FILTER_USE_KEY));
-            // array of module information for each of $enabled_mods
-            $enabled_mods_objects = array_filter( $brandLibrary['modules'], function($module) use($enabled_mods){
-                if( in_array( $module['slug'] , $enabled_mods ) ){
-                    return $module;
-                }
-            });
-            // array of formatted strings representing paths modules should be extracted to (or already exist within)
-            $enabled_mods_install_dirs = [];
-            foreach ($enabled_mods_objects as $i => $enabled_mod_object) {
-                $enabled_mods_install_dirs[] = $enabled_mod_object['slug'] . "_v" . $enabled_mod_object['version'];
-            }
-            
-            // array of paths that already exist locally from the submitted option_names after formatting w/ version
-            $verified_local_mods = array_intersect($modules_dir_contents, $enabled_mods_install_dirs);
-
-            // (may want to check that the dir is not empty as well)
-
-            // array of paths that already exist locally that DO NOT match submitted option_names after formatting w/ version
-            $modules_dir_junk = array_diff($modules_dir_contents, $enabled_mods_install_dirs);
-            if( !empty($modules_dir_junk) ){
-                foreach( $modules_dir_junk as $i => $junk ){
-                    if( is_file(realpath($modules_dir . $junk)) ){
-                        // 
-                        // THIS IS JUST A EXTRA CHECK FOR EXTRANEOUS STUFF THAT MAY HAVE FALLEN INTO THIS FOLDER
-                        // 
-                        unlink($modules_dir.$junk);
-                    } elseif( is_dir($modules_dir.$junk) ){
-                        /**
-                         * THIS IS WHERE I CHECK FOR AND RUN A DEACTIVATION HOOK!!
-                         */
-
-                        rrmdir($modules_dir.$junk);
-                    }
-                }
-            }
-
-
-
-            function cleanup_extracted_module_zip($zipFilePath){
-                if( is_writeable($zipFilePath)){
-                    unlink($zipFilePath);
-                }
-            }
-
-            function download_nu_module_zip($module, $zipFilePath, $moduleDirPath){
                 $remotezip = $module['gitlink'];
                 
                 // $contents = file_get_contents($remotezip);
@@ -305,9 +254,67 @@ class NUModuleLoader
                         $zip->close();
                     }
                 }
+                // delete the zip file after it has been extracted
                 cleanup_extracted_module_zip($zipFilePath);
             }
+            
+            $modules_dir_contents = [];
+            if( $handle = opendir(realpath($modules_dir)) ){
+                while( false !== ($entry = readdir($handle)) )
+                {
+                    if( $entry != '.' && $entry != ".." && $entry != '.DS_Store' ){
+                        $modules_dir_contents[] = $entry;
+                    }
+                }
+                closedir($handle);
+            }
 
+            // array of index => module names
+            $enabled_mods = array_keys(array_filter($_POST, function($key){
+                // return strpos($key, 'module-') === 0;
+                return strpos($key, 'numod-') === 0;
+            }, ARRAY_FILTER_USE_KEY));
+
+            
+            // multi-demensional array of each modules info from the brandLibrary
+            $enabled_mods_objects = array_filter( $brandLibrary['modules'], function($module) use($enabled_mods)
+            {
+                if( in_array( $module['slug'] , $enabled_mods ) ){
+                    return $module;
+                }
+            });
+
+            
+            // array of modules dirs (version appended)
+            $enabled_mods_install_dirs = [];
+            foreach ($enabled_mods_objects as $i => $module)
+            {
+                $enabled_mods_install_dirs[] = $module['slug'] . "_v" . $module['version'];
+            }
+            
+
+            // array of file/folder paths in the modules directory that should be deleted
+            // only directories matching the module-name_version paradigm will exist
+            $removablePaths = array_diff($modules_dir_contents, $enabled_mods_install_dirs);
+            if( !empty($removablePaths) ){
+                foreach( $removablePaths as $removeablePath ){
+                    // delete any loose files
+                    if( is_file(realpath($modules_dir.$removeablePath)) )
+                    {
+                        unlink($modules_dir.$removeablePath);
+                    }
+                    // delete any unchecked or depricated modules (old version)
+                    elseif( is_dir($modules_dir.$removeablePath) )
+                    {
+                        // INCLUDE THE MODULE THAT IS ABOUT TO BE DELETED
+                        // INSTANTIATE IT
+                        // RUN ITS DEACTIVATION HOOK
+                        rrmdir($modules_dir.$removeablePath);
+                    }
+                }
+            }
+            
+            // install any missing or updated modules
             foreach( $enabled_mods_objects as $module ){
                 $moduleDirPath = $modules_dir . $module['slug'] . "_v" . $module['version'];
                 $zipFilePath = realpath($modules_dir)."/".$module['slug'].".zip";
@@ -438,7 +445,8 @@ class NUModuleLoader
 // initialize new object
 $NUML = new NUModuleLoader();
 
-if (!is_admin()) { // only run this if the user in on the front-end pages
+if (!is_admin())
+{ // only run this if the user in on the front-end pages
 	function NUML_globalfooter()
 	{
 		global $NUML;

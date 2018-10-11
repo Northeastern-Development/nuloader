@@ -1,6 +1,7 @@
 <?php
     /**
      * Ensure site has a 'search' page that is hidden from users
+     * @version [1.0.0] [Version Number]
      */
     class SearchModule
     {
@@ -17,7 +18,8 @@
          */
         function check_for_search_page(){
             $searchPage = get_page_by_title('Search', ARRAY_A);
-            if( !empty( $searchPage ) ){
+            if( !empty( $searchPage ) )
+            {
                 if( $searchPage['post_status'] === 'trash' ){
                     error_log(print_r( "Search Page was found with status: \n" . $searchPage['post_status'], true));
                     // post in trash
@@ -62,7 +64,7 @@
             function override_default_page_template( $page_template )
             {
                 if ( is_page( 'search' ) ) {
-                    $page_template = dirname( __FILE__ ) . '/search-page-template.php';
+                    $page_template = dirname( __FILE__ ) . '/tpl.SearchPage.php';
                 }
                 return $page_template;
             }
