@@ -284,7 +284,7 @@ class NUModuleLoader
                 }
             });
 
-            
+
             // array of modules dirs (version appended)
             $enabled_mods_install_dirs = [];
             foreach ($enabled_mods_objects as $i => $module)
@@ -297,19 +297,23 @@ class NUModuleLoader
             // only directories matching the module-name_version paradigm will exist
             $removablePaths = array_diff($modules_dir_contents, $enabled_mods_install_dirs);
             if( !empty($removablePaths) ){
-                foreach( $removablePaths as $removeablePath ){
+                foreach( $removablePaths as $removablePath ){
                     // delete any loose files
-                    if( is_file(realpath($modules_dir.$removeablePath)) )
+                    if( is_file(realpath($modules_dir.$removablePath)) )
                     {
-                        unlink($modules_dir.$removeablePath);
+                        unlink($modules_dir.$removablePath);
                     }
                     // delete any unchecked or depricated modules (old version)
-                    elseif( is_dir($modules_dir.$removeablePath) )
+                    elseif( is_dir($modules_dir.$removablePath) )
                     {
                         // INCLUDE THE MODULE THAT IS ABOUT TO BE DELETED
+                        include_once( $modules_dir . '/' . $removablePath . '/' . $removablePath . '.php');
                         // INSTANTIATE IT
+                        $handle = new SearchModule();
                         // RUN ITS DEACTIVATION HOOK
-                        rrmdir($modules_dir.$removeablePath);
+                        $handle->do_deactivate_module();
+                        // then delete
+                        rrmdir($modules_dir.$removablePath);
                     }
                 }
             }
