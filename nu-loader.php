@@ -75,10 +75,7 @@ class NUModuleLoader
      */
     private function handle_exec_installed_modules()
     {
-        /**
-         * include_once each module in the modules dir
-         * expects a .php file in each dir w/ the same name as the folder containing it
-         */
+        // 
         function do_exec_nu_modules()
         {
             $installed_modules = [];
@@ -187,7 +184,8 @@ class NUModuleLoader
          * hooked to the hidden timestamp field (module loader)
          * $brandLibrary is gauranteed to exist if this setting exists
          */
-        function on_nuloader_save_changes(){
+        function on_nuloader_save_changes()
+        {
             // will always exist
             global $brandLibrary;
             // directory containing installed modules
@@ -237,7 +235,7 @@ class NUModuleLoader
                         unlink($zipFilePath);
                     }
                 }
-                $remotezip = $module['gitlink'];
+                $remotezip = $module['zipfile'];
                 
                 // $contents = file_get_contents($remotezip);
                 $contents = curl_get_contents($remotezip);
@@ -289,7 +287,8 @@ class NUModuleLoader
             $enabled_mods_install_dirs = [];
             foreach ($enabled_mods_objects as $i => $module)
             {
-                $enabled_mods_install_dirs[] = $module['slug'] . "_v" . $module['version'];
+                // $enabled_mods_install_dirs[] = $module['slug'] . "_v" . $module['version'];
+                $enabled_mods_install_dirs[] = $module['classname'] . "_v" . $module['version'];
             }
             
 
@@ -309,7 +308,7 @@ class NUModuleLoader
                         // INCLUDE THE MODULE THAT IS ABOUT TO BE DELETED
                         include_once( $modules_dir . '/' . $removablePath . '/' . $removablePath . '.php');
                         // INSTANTIATE IT
-                        $handle = new SearchModule();
+                        $handle = new $removablePath();
                         // RUN ITS DEACTIVATION HOOK
                         $handle->do_deactivate_module();
                         // then delete
@@ -320,8 +319,11 @@ class NUModuleLoader
             
             // install any missing or updated modules
             foreach( $enabled_mods_objects as $module ){
-                $moduleDirPath = $modules_dir . $module['slug'] . "_v" . $module['version'];
-                $zipFilePath = realpath($modules_dir)."/".$module['slug'].".zip";
+
+                // $moduleDirPath = $modules_dir . $module['slug'] . "_v" . $module['version'];
+                $moduleDirPath = $modules_dir . $module['classname'] . "_v" . $module['version'];
+
+                $zipFilePath = realpath($modules_dir)."/".$module['classname'].".zip";
                 if( !is_dir($moduleDirPath) ){
                     download_nu_module_zip($module, $zipFilePath, $moduleDirPath);
                 }
