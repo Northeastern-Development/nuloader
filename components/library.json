@@ -1,0 +1,30 @@
+{
+  "config":{
+    "sourceurl":"https://www.northeastern.edu"
+  }
+  ,"required":{
+    "header":{
+      "title":"Gloabl Header"
+      ,"source":"url goes here"
+      ,"hashcheck":"hash value goes here"
+    }
+  },
+  "optional":{
+    "services":{
+      "Title":"Services"
+      ,"search":{
+        "title":"Search"
+        ,"source":"url goes here"
+        ,"hashcheck":"hash value goes here"
+      }
+    }
+    ,"components":{
+      "Title":"Components"
+      ,"hero-block":{
+        "title":"Hero Block"
+        ,"source":"url goes here"
+        ,"hashcheck":"hash value goes here"
+      }
+    }
+  }
+}
